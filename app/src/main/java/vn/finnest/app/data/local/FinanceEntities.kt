@@ -6,11 +6,18 @@ import androidx.room.PrimaryKey
 @Entity(tableName = "holdings")
 data class HoldingEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
-    val symbol: String,
+    val name: String,
+    val symbol: String = "",
+    val assetType: String, // STOCK, CASH, GOLD, FUND, OTHER
     val quantity: Double,
-    val averageCost: Double,
+    val averageCostVnd: Long,
+    val currentPriceVnd: Long? = null,
     val updatedAtEpochMillis: Long = System.currentTimeMillis()
-)
+) {
+    fun investedValueVnd(): Long = (quantity * averageCostVnd).toLong()
+    fun marketValueVnd(): Long = (quantity * (currentPriceVnd ?: averageCostVnd)).toLong()
+    fun profitLossVnd(): Long = marketValueVnd() - investedValueVnd()
+}
 
 @Entity(tableName = "ledger_entries")
 data class LedgerEntryEntity(

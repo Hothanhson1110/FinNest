@@ -11,10 +11,6 @@ import vn.finnest.app.ui.theme.FinNestTheme
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent {
-            FinNestTheme {
-                FinNestApp()
-            }
-        }
+        setContent { FinNestTheme { FinNestApp() } }
     }
 }

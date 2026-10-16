@@ -14,11 +14,9 @@ import vn.finnest.app.data.local.FinanceDao
 @Module
 @InstallIn(SingletonComponent::class)
 object DatabaseModule {
-    @Provides
-    @Singleton
+    @Provides @Singleton
     fun provideDatabase(@ApplicationContext context: Context): FinNestDatabase =
-        Room.databaseBuilder(context, FinNestDatabase::class.java, "finnest.db")
-            .build()
+        Room.databaseBuilder(context, FinNestDatabase::class.java, "finnest.db").build()
 
     @Provides
     fun provideFinanceDao(database: FinNestDatabase): FinanceDao = database.financeDao()

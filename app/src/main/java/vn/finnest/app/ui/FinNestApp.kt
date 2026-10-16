@@ -55,7 +55,7 @@ fun FinNestApp(viewModel: FinanceViewModel = hiltViewModel()) {
             NavigationBar(containerColor = Color.White) {
                 NavigationBarItem(selectedTab == 0, { selectedTab = 0 }, icon = { Icon(Icons.Default.Home, null) }, label = { Text("Tổng quan") })
                 NavigationBarItem(selectedTab == 1, { selectedTab = 1 }, icon = { Icon(Icons.Default.PieChart, null) }, label = { Text("Danh mục") })
-                NavigationBarItem(selectedTab == 2, { selectedTab = 2 }, icon = { Icon(Icons.Default.Analytics, null) }, label = { Text("Phân tích") })
+                NavigationBarItem(selectedTab == 2, { selectedTab = 2 }, icon = { Icon(Icons.Default.Analytics, null) }, label = { Text("Thị trường") })
                 NavigationBarItem(selectedTab == 3, { selectedTab = 3 }, icon = { Icon(Icons.Default.AccountBalanceWallet, null) }, label = { Text("Tài chính") })
             }
         },
@@ -91,7 +91,7 @@ fun FinNestApp(viewModel: FinanceViewModel = hiltViewModel()) {
                     summary.incomeVnd, summary.expenseVnd, holdings, ledger,
                     onDeleteHolding = viewModel::deleteHolding, onDeleteLedger = viewModel::deleteLedger)
                 1 -> HoldingsScreen(holdings, viewModel::deleteHolding)
-                2 -> Placeholder("Phân tích kỹ thuật", "SMA, EMA, RSI, MACD và công thức cá nhân sẽ được bổ sung ở giai đoạn tiếp theo.")
+                2 -> MarketScreen()
                 else -> LedgerScreen(ledger, viewModel::deleteLedger, summary.incomeVnd, summary.expenseVnd)
             }
         }

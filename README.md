@@ -1,11 +1,11 @@
 # FinNest
 **Tài chính an tâm, đầu tư vững bước**
 
-Version: **0.4.0**
+Version: **0.5.0**
 
 Kotlin · Jetpack Compose · Material 3 · MVVM · Hilt · Room · Coroutines · GitHub Actions.
 
-## Features in this iteration (0.4.0)
+## Features in this iteration (0.5.0)
 - Add stock holdings and non-stock assets.
 - Add income and expense ledger entries.
 - Dashboard totals are derived from local Room data.
@@ -42,3 +42,10 @@ This source archive is intended to be built by the included GitHub Actions workf
 which installs Gradle 8.9 and JDK 17. A Gradle Wrapper is not included in this archive.
 Do not add DNSE API keys or secrets to the Android app; live market data requires a
 separately deployed HTTPS backend.
+
+## v0.5.0 chart notes
+- Market screen includes an OHLC candlestick chart with SMA(5), EMA(5), RSI(14), and MACD(12,26,9).
+- The chart currently uses deterministic illustration data and is explicitly labeled as sample data, not real DNSE quotes.
+- Real historical OHLC integration requires the HTTPS backend to expose a validated historical-candle endpoint.
+- The Android app must never embed DNSE API secrets. Indicator outputs are informational and are not investment advice.
+- New unit tests cover OHLC validation and chronological ordering.

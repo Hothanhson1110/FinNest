@@ -2,6 +2,8 @@ package vn.finnest.app.ui
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -14,8 +16,11 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
@@ -23,6 +28,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import java.text.NumberFormat
 import java.util.Locale
+import kotlin.math.abs
 import vn.finnest.app.data.market.MarketQuoteDto
 import vn.finnest.app.domain.OhlcCandle
 import vn.finnest.app.domain.TechnicalIndicators
@@ -30,47 +36,120 @@ import vn.finnest.app.domain.TechnicalIndicators
 private val MarketClay = Color(0xFF8C302B)
 private val MarketLeaf = Color(0xFF617A55)
 private val MarketCopper = Color(0xFFDDA65D)
+private val MarketBlue = Color(0xFF4777A8)
 private val MarketMuted = Color(0xFF77716A)
 private val MarketGrid = Color(0xFFE7DED2)
 private val MarketNumber = NumberFormat.getNumberInstance(Locale("vi", "VN"))
+private val ChartBackground = Color(0xFFFFFEFC)
+
+private enum class ChartRange(val label: String, val count: Int) {
+    ONE_WEEK("1W", 5), ONE_MONTH("1M", 20), THREE_MONTHS("3M", 30)
+}
 
 @Composable
 fun MarketScreen(viewModel: MarketViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsState()
     var symbols by remember { mutableStateOf("FPT, HPG, VCB") }
-    val demoCandles = remember { sampleCandles() }
-    val closes = remember(demoCandles) { demoCandles.map { it.close } }
+    var selectedSymbol by remember { mutableStateOf("FPT") }
+    var range by remember { mutableStateOf(ChartRange.THREE_MONTHS) }
+    var showSma by remember { mutableStateOf(true) }
+    var showEma by remember { mutableStateOf(true) }
+    var selectedIndex by remember { mutableIntStateOf(-1) }
+
+    val allCandles = remember { sampleCandles() }
+    val candles = remember(allCandles, range) { allCandles.takeLast(range.count) }
+    val closes = remember(candles) { candles.map { it.close } }
     val sma = remember(closes) { TechnicalIndicators.sma(closes, 5) }
     val ema = remember(closes) { TechnicalIndicators.ema(closes, 5) }
     val rsi = remember(closes) { TechnicalIndicators.rsi(closes, 14).lastOrNull() }
     val macd = remember(closes) { TechnicalIndicators.macd(closes).lastOrNull() }
+    val activeIndex = selectedIndex.takeIf { it in candles.indices } ?: candles.lastIndex
+    val active = candles.getOrNull(activeIndex)
 
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Text("Thị trường", style = MaterialTheme.typography.headlineSmall, color = MarketClay, fontWeight = FontWeight.Bold)
-        Text("Biểu đồ minh họa · Chưa phải dữ liệu DNSE thật", color = MarketMuted, fontSize = 12.sp)
+        Text("Giao diện biểu đồ nâng cao · dữ liệu minh họa", color = MarketMuted, fontSize = 12.sp)
 
-        Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(18.dp)) {
-            Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(20.dp)) {
+            Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("FPT", color = MarketClay, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge)
-                    Text("OHLC · 30 phiên mẫu", color = MarketMuted, fontSize = 12.sp)
+                    Text(selectedSymbol, color = MarketClay, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.headlineSmall)
+                    Column(Modifier.weight(1f)) {
+                        Text("HOSE · Cổ phiếu", color = MarketMuted, fontSize = 11.sp)
+                        Text("Giá mẫu: ${active?.let { MarketNumber.format(it.close) } ?: "—"}",
+                            color = if (active != null && active.close >= active.open) MarketLeaf else MarketClay,
+                            fontWeight = FontWeight.SemiBold)
+                    }
+                    Text("● MẪU", color = MarketClay, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                 }
+
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    listOf("FPT", "HPG", "VCB", "VNINDEX").forEach { symbol ->
+                        val selected = symbol == selectedSymbol
+                        Surface(
+                            modifier = Modifier.weight(1f).clickable {
+                                selectedSymbol = symbol
+                                selectedIndex = -1
+                            },
+                            shape = RoundedCornerShape(9.dp),
+                            color = if (selected) MarketClay else Color(0xFFF4EEE6)
+                        ) {
+                            Text(symbol, modifier = Modifier.padding(vertical = 9.dp, horizontal = 3.dp),
+                                color = if (selected) Color.White else MarketMuted, fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                        }
+                    }
+                }
+
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    ChartRange.values().forEach { item ->
+                        FilterChip(
+                            selected = range == item,
+                            onClick = { range = item; selectedIndex = -1 },
+                            label = { Text(item.label) }
+                        )
+                    }
+                    Spacer(Modifier.weight(1f))
+                    Text("Chạm nến để xem OHLC", color = MarketMuted, fontSize = 10.sp)
+                }
+
+                active?.let {
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                        OhlcValue("MỞ", it.open)
+                        OhlcValue("CAO", it.high, MarketLeaf)
+                        OhlcValue("THẤP", it.low, MarketClay)
+                        OhlcValue("ĐÓNG", it.close, if (it.close >= it.open) MarketLeaf else MarketClay)
+                    }
+                }
+
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     LegendDot(MarketLeaf, "Tăng")
                     LegendDot(MarketClay, "Giảm")
                     LegendDot(MarketCopper, "SMA 5")
-                    LegendDot(Color(0xFF4777A8), "EMA 5")
+                    LegendDot(MarketBlue, "EMA 5")
                 }
-                OhlcChart(candles = demoCandles, sma = sma, ema = ema, modifier = Modifier.fillMaxWidth().height(220.dp))
-                Text("Giá đóng cửa cuối: ${MarketNumber.format(closes.last())} (đơn vị minh họa)",
-                    color = MarketMuted, fontSize = 12.sp)
+
+                OhlcChart(
+                    candles = candles, sma = sma, ema = ema,
+                    showSma = showSma, showEma = showEma, selectedIndex = activeIndex,
+                    onSelectIndex = { selectedIndex = it },
+                    modifier = Modifier.fillMaxWidth().height(250.dp)
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(selected = showSma, onClick = { showSma = !showSma }, label = { Text("SMA 5") })
+                    FilterChip(selected = showEma, onClick = { showEma = !showEma }, label = { Text("EMA 5") })
+                    Spacer(Modifier.weight(1f))
+                    Text("${candles.size} nến", color = MarketMuted, fontSize = 11.sp)
+                }
+                VolumeChart(candles, modifier = Modifier.fillMaxWidth().height(72.dp))
+                Text("Khối lượng giao dịch (minh họa)", color = MarketMuted, fontSize = 11.sp)
             }
         }
 
-        Text("Phân tích kỹ thuật", style = MaterialTheme.typography.titleLarge, color = MarketClay, fontWeight = FontWeight.Bold)
+        Text("Chỉ báo kỹ thuật", style = MaterialTheme.typography.titleLarge, color = MarketClay, fontWeight = FontWeight.Bold)
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             IndicatorCard("RSI (14)", rsi?.let { String.format(Locale.US, "%.2f", it) } ?: "Chưa đủ dữ liệu",
                 when { rsi == null -> MarketMuted; rsi >= 70 -> MarketClay; rsi <= 30 -> MarketLeaf; else -> MarketMuted },
@@ -78,17 +157,17 @@ fun MarketScreen(viewModel: MarketViewModel = hiltViewModel()) {
             IndicatorCard("SMA (5)", sma.lastOrNull()?.let { MarketNumber.format(it) } ?: "—", MarketCopper, Modifier.weight(1f))
         }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            IndicatorCard("EMA (5)", ema.lastOrNull()?.let { MarketNumber.format(it) } ?: "—", Color(0xFF4777A8), Modifier.weight(1f))
+            IndicatorCard("EMA (5)", ema.lastOrNull()?.let { MarketNumber.format(it) } ?: "—", MarketBlue, Modifier.weight(1f))
             IndicatorCard("MACD (12,26,9)", macd?.macd?.let { String.format(Locale.US, "%.3f", it) } ?: "Chưa đủ dữ liệu",
                 if ((macd?.histogram ?: 0.0) >= 0.0) MarketLeaf else MarketClay, Modifier.weight(1f))
         }
         macd?.let {
-            InfoCard("Tín hiệu MACD: ${if ((it.histogram ?: 0.0) >= 0.0) "histogram dương" else "histogram âm"}. Đây là chỉ báo tham khảo, không phải khuyến nghị mua/bán.")
+            InfoCard("MACD histogram ${if ((it.histogram ?: 0.0) >= 0.0) "dương" else "âm"}. Chỉ báo tham khảo, không phải khuyến nghị mua/bán.")
         }
 
         Divider(color = MarketGrid)
         Text("Kết nối dữ liệu thị trường", style = MaterialTheme.typography.titleLarge, color = MarketClay, fontWeight = FontWeight.Bold)
-        Text("Báo giá chỉ hiển thị khi backend HTTPS được cấu hình.", color = MarketMuted, fontSize = 12.sp)
+        Text("Giá thật chỉ hiển thị khi backend HTTPS được cấu hình.", color = MarketMuted, fontSize = 12.sp)
         OutlinedTextField(
             value = symbols, onValueChange = { symbols = it }, modifier = Modifier.fillMaxWidth(),
             label = { Text("Mã chứng khoán") }, placeholder = { Text("FPT, HPG, VCB") }, singleLine = true,
@@ -102,11 +181,9 @@ fun MarketScreen(viewModel: MarketViewModel = hiltViewModel()) {
         }
         when (val current = state) {
             MarketUiState.Idle -> InfoCard(if (viewModel.isConfigured)
-                "Backend đã được cấu hình. Nhấn tải dữ liệu để kiểm tra kết nối."
-                else "Chưa kết nối DNSE. Cần triển khai backend trung gian HTTPS và cấu hình MARKET_API_BASE_URL. Không nhập API Secret vào ứng dụng.")
-            MarketUiState.Loading -> Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
-            }
+                "Backend đã cấu hình. Nhấn tải dữ liệu để kiểm tra kết nối."
+                else "Chưa kết nối DNSE. Cần backend trung gian HTTPS. Không nhập API Secret vào ứng dụng.")
+            MarketUiState.Loading -> Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
             is MarketUiState.Error -> InfoCard(current.message)
             is MarketUiState.Success -> {
                 if (current.quotes.isEmpty()) InfoCard("Backend chưa trả về báo giá cho các mã đã chọn.")
@@ -122,47 +199,88 @@ private fun OhlcChart(
     candles: List<OhlcCandle>,
     sma: List<Double?>,
     ema: List<Double?>,
+    showSma: Boolean,
+    showEma: Boolean,
+    selectedIndex: Int,
+    onSelectIndex: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Canvas(modifier) {
+    Canvas(modifier.pointerInput(candles.size) {
+        detectTapGestures { point ->
+            if (candles.isNotEmpty()) {
+                val slot = size.width / candles.size
+                onSelectIndex((point.x / slot).toInt().coerceIn(candles.indices))
+            }
+        }
+    }) {
         if (candles.isEmpty()) return@Canvas
         val minPrice = candles.minOf { it.low }
         val maxPrice = candles.maxOf { it.high }
         val range = (maxPrice - minPrice).takeIf { it > 0.0 } ?: 1.0
-        val top = 12.dp.toPx()
-        val bottom = size.height - 12.dp.toPx()
+        val left = 4.dp.toPx()
+        val right = size.width - 4.dp.toPx()
+        val top = 10.dp.toPx()
+        val bottom = size.height - 14.dp.toPx()
         val chartHeight = bottom - top
         fun y(price: Double) = bottom - ((price - minPrice) / range).toFloat() * chartHeight
-        repeat(4) { i ->
-            val gy = top + chartHeight * i / 3f
-            drawLine(MarketGrid, Offset(0f, gy), Offset(size.width, gy), 1.dp.toPx())
+        repeat(5) { i ->
+            val gy = top + chartHeight * i / 4f
+            drawLine(MarketGrid, Offset(left, gy), Offset(right, gy), 1.dp.toPx())
         }
-        val slot = size.width / candles.size
-        val bodyWidth = (slot * 0.52f).coerceAtLeast(2.dp.toPx())
+        val slot = (right - left) / candles.size
+        val bodyWidth = (slot * 0.56f).coerceAtLeast(2.dp.toPx())
         candles.forEachIndexed { index, candle ->
-            val x = slot * (index + 0.5f)
+            val x = left + slot * (index + 0.5f)
             val rising = candle.close >= candle.open
             val color = if (rising) MarketLeaf else MarketClay
             drawLine(color, Offset(x, y(candle.high)), Offset(x, y(candle.low)), 1.2.dp.toPx())
             val openY = y(candle.open)
             val closeY = y(candle.close)
-            val bodyTop = minOf(openY, closeY)
-            val bodyHeight = kotlin.math.abs(closeY - openY).coerceAtLeast(1.5.dp.toPx())
-            drawRect(color, topLeft = Offset(x - bodyWidth / 2f, bodyTop), size = androidx.compose.ui.geometry.Size(bodyWidth, bodyHeight))
+            drawRect(color, topLeft = Offset(x - bodyWidth / 2f, minOf(openY, closeY)),
+                size = Size(bodyWidth, abs(closeY - openY).coerceAtLeast(1.5.dp.toPx())))
+            if (index == selectedIndex) {
+                drawLine(Color(0xFF9C8E80), Offset(x, top), Offset(x, bottom), 1.dp.toPx())
+            }
         }
         fun drawSeries(values: List<Double?>, color: Color) {
             val path = Path()
             var started = false
             values.forEachIndexed { index, value ->
                 if (value != null) {
-                    val point = Offset(slot * (index + 0.5f), y(value))
+                    val point = Offset(left + slot * (index + 0.5f), y(value))
                     if (!started) { path.moveTo(point.x, point.y); started = true } else path.lineTo(point.x, point.y)
                 } else started = false
             }
-            drawPath(path, color, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.dp.toPx()))
+            drawPath(path, color, style = Stroke(width = 2.dp.toPx()))
         }
-        drawSeries(sma, MarketCopper)
-        drawSeries(ema, Color(0xFF4777A8))
+        if (showSma) drawSeries(sma, MarketCopper)
+        if (showEma) drawSeries(ema, MarketBlue)
+    }
+}
+
+@Composable
+private fun VolumeChart(candles: List<OhlcCandle>, modifier: Modifier = Modifier) {
+    Canvas(modifier) {
+        if (candles.isEmpty()) return@Canvas
+        val maxVolume = candles.maxOf { it.volume }.coerceAtLeast(1L).toFloat()
+        val slot = size.width / candles.size
+        val width = (slot * 0.56f).coerceAtLeast(2.dp.toPx())
+        candles.forEachIndexed { index, candle ->
+            val previous = candles.getOrNull(index - 1)?.close ?: candle.open
+            val color = if (candle.close >= previous) MarketLeaf else MarketClay
+            val height = (candle.volume.toFloat() / maxVolume) * (size.height - 4.dp.toPx())
+            drawRect(color.copy(alpha = 0.78f),
+                topLeft = Offset(slot * index + (slot - width) / 2f, size.height - height),
+                size = Size(width, height))
+        }
+    }
+}
+
+@Composable
+private fun OhlcValue(label: String, value: Double, color: Color = MarketMuted) {
+    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        Text(label, color = MarketMuted, fontSize = 9.sp)
+        Text(MarketNumber.format(value), color = color, fontWeight = FontWeight.SemiBold, fontSize = 11.sp)
     }
 }
 
@@ -207,10 +325,6 @@ private fun QuoteCard(quote: MarketQuoteDto) {
     }
 }
 
-/**
- * Deterministic illustration data only. Replace with validated backend OHLC before labeling
- * the chart as real market data. No quote is fabricated in the API repository.
- */
 private fun sampleCandles(): List<OhlcCandle> {
     val closes = listOf(
         48.2, 48.7, 48.4, 49.1, 49.6, 49.2, 49.8, 50.1, 49.7, 50.4,
@@ -220,13 +334,9 @@ private fun sampleCandles(): List<OhlcCandle> {
     return closes.mapIndexed { index, close ->
         val previous = if (index == 0) close - 0.3 else closes[index - 1]
         val open = previous + if (index % 2 == 0) 0.12 else -0.10
-        OhlcCandle(
-            timestamp = index.toLong(),
-            open = open,
-            high = maxOf(open, close) + 0.25 + (index % 3) * 0.05,
-            low = minOf(open, close) - 0.20 - (index % 2) * 0.05,
-            close = close,
-            volume = 1000L + index * 125L
-        )
+        OhlcCandle(index.toLong(), open,
+            maxOf(open, close) + 0.25 + (index % 3) * 0.05,
+            minOf(open, close) - 0.20 - (index % 2) * 0.05,
+            close, 1000L + index * 125L)
     }
 }

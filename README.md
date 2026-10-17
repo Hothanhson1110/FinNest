@@ -1,11 +1,11 @@
 # FinNest
 **Tài chính an tâm, đầu tư vững bước**
 
-Version: **0.6.0**
+Version: **0.6.1**
 
 Kotlin · Jetpack Compose · Material 3 · MVVM · Hilt · Room · Coroutines · GitHub Actions.
 
-## Features in this iteration (0.6.0)
+## Features in this iteration (0.6.1)
 - Add stock holdings and non-stock assets.
 - Add income and expense ledger entries.
 - Dashboard totals are derived from local Room data.
@@ -57,3 +57,7 @@ separately deployed HTTPS backend.
 - The current candles and volume are explicitly illustrative, not real market data.
 - Live historical candles require a validated HTTPS backend endpoint; never ship DNSE secrets in the APK.
 - Existing CI workflow and OHLC/indicator unit tests are retained.
+
+
+## v0.6.1 hotfix
+- Fixes Compose `Modifier.weight` scope error in the OHLC value row. CI should be rerun before APK installation.

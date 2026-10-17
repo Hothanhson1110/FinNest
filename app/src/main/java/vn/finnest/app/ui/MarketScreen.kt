@@ -118,10 +118,10 @@ fun MarketScreen(viewModel: MarketViewModel = hiltViewModel()) {
 
                 active?.let {
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                        OhlcValue("MỞ", it.open)
-                        OhlcValue("CAO", it.high, MarketLeaf)
-                        OhlcValue("THẤP", it.low, MarketClay)
-                        OhlcValue("ĐÓNG", it.close, if (it.close >= it.open) MarketLeaf else MarketClay)
+                        OhlcValue("MỞ", it.open, modifier = Modifier.weight(1f))
+                        OhlcValue("CAO", it.high, MarketLeaf, Modifier.weight(1f))
+                        OhlcValue("THẤP", it.low, MarketClay, Modifier.weight(1f))
+                        OhlcValue("ĐÓNG", it.close, if (it.close >= it.open) MarketLeaf else MarketClay, Modifier.weight(1f))
                     }
                 }
 
@@ -277,8 +277,13 @@ private fun VolumeChart(candles: List<OhlcCandle>, modifier: Modifier = Modifier
 }
 
 @Composable
-private fun OhlcValue(label: String, value: Double, color: Color = MarketMuted) {
-    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+private fun OhlcValue(
+    label: String,
+    value: Double,
+    color: Color = MarketMuted,
+    modifier: Modifier = Modifier
+) {
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(3.dp)) {
         Text(label, color = MarketMuted, fontSize = 9.sp)
         Text(MarketNumber.format(value), color = color, fontWeight = FontWeight.SemiBold, fontSize = 11.sp)
     }
